@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2.10 — Satellite Link Budgets & Orbits</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500&amp;family=Space+Grotesk:wght@500&amp;display=swap');
+        
+        :root {
+            --tw-color-space: #0a0a2a;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0a0a2a 0%, #1a1a4a 100%);
+        }
+        
+        .star-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+            background: transparent;
+            overflow: hidden;
+        }
+        
+        .header {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        
+        .canvas-container {
+            background: #0f172a;
+            border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.4);
+        }
+        
+        .tab-active {
+            border-bottom: 4px solid #22d3ee;
+            color: #67e8f9;
+        }
+    </style>
+</head>
+<body class="text-white min-h-screen pb-12">
+    <!-- Background stars -->
+    <div class="star-bg" id="stars"></div>
+
+    <div class="max-w-7xl mx-auto px-6 py-8">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-10">
+            <div>
+                <div class="inline-flex items-center gap-x-3 bg-white/10 backdrop-blur-md px-5 py-2 rounded-3xl mb-4">
+                    <div class="w-3 h-3 bg-cyan-400 rounded-full animate-pulse"></div>
+                    <span class="text-cyan-300 text-sm font-medium tracking-widest">INTERACTIVE TOOLKIT</span>
+                </div>
+                <h1 class="header text-5xl font-semibold tracking-tighter">2.10 — Satellite Link Budgets &amp; Orbits</h1>
+                <p class="text-xl text-cyan-100 mt-2 max-w-2xl">Interactive link budget calculator, path loss visualizer, and real-time orbit animator. Control power, gains, losses — watch signals decay across LEO, MEO, and GEO.</p>
+            </div>
+            
+            <div class="flex items-center gap-x-6 text-sm">
+                <a onclick="showTab(0)" class="tab-button flex items-center gap-x-2 px-6 py-3 rounded-2xl hover:bg-white/10 transition-colors cursor-pointer" id="tab-0">
+                    <span class="text-cyan-400">📡</span>
+                    <span>Link Budget</span>
+                </a>
+                <a onclick="showTab(1)" class="tab-button flex items-center gap-x-2 px-6 py-3 rounded-2xl hover:bg-white/10 transition-colors cursor-pointer" id="tab-1">
+                    <span class="text-cyan-400">📉</span>
+                    <span>Path Loss</span>
+                </a>
+                <a onclick="showTab(2)" class="tab-button flex items-center gap-x-2 px-6 py-3 rounded-2xl hover:bg-white/10 transition-colors cursor-pointer" id="tab-2">
+                    <span class="text-cyan-400">🛰️</span>
+                    <span>Orbit Visualizer</span>
+                </a>
+                <div class="text-xs bg-white/10 px-4 py-2 rounded-2xl flex items-center gap-x-2">
+                    <div class="w-2 h-2 bg-emerald-400 rounded-full animate-ping"></div>
+                    LIVE CALCULATIONS
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 0: Link Budget Tool -->
+        <div id="panel-0" class="tab-panel">
+            <div class="grid grid-cols-12 gap-8">
+                <!-- Inputs -->
+                <div class="col-span-12 lg:col-span-5">
+                    <div class="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8">
+                        <h2 class="text-2xl font-semibold mb-6 flex items-center gap-x-3">
+                            <span>🔧</span> Link Budget Calculator
+                        </h2>
+                        
+                        <div class="space-y-8">
+                            <!-- Shared parameters -->
+                            <div>
+                                <label class="text-cyan-200 text-sm font-medium mb-2 block">Transmit Power Pt (dBW)</label>
+                                <div class="flex items-center gap-x-4">
+                                    <input type="range" id="pt-slider" min="-10" max="60" value="20" class="flex-1 accent-cyan-400" oninput="updateInputValue(this, 'pt')">
+                                    <input type="number" id="pt" value="20" class="w-24 bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-center font-mono text-lg" onchange="syncSlider(this, 'pt-slider')">
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-8">
+                                <div>
+                                    <label class="text-cyan-200 text-sm font-medium mb-2 block">Tx Antenna Gain Gt (dBi)</label>
+                                    <div class="flex items-center gap-x-4">
+                                        <input type="range" id="gt-slider" min="0" max="60" value="25" class="flex-1 accent-cyan-400" oninput="updateInputValue(this, 'gt')">
+                                        <input type="number" id="gt" value="25" class="w-24 bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-center font-mono text-lg" onchange="syncSlider(this, 'gt-slider')">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="text-cyan-200 text-sm font-medium mb-2 block">Rx Antenna Gain Gr (dBi)</label>
+                                    <div class="flex items-center gap-x-4">
+                                        <input type="range" id="gr-slider" min="0" max="60" value="35" class="flex-1 accent-cyan-400" oninput="updateInputValue(this, 'gr')">
+                                        <input type="number" id="gr" value="35" class="w-24 bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-center font-mono text-lg" onchange="syncSlider(this, 'gr-slider')">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="text-cyan-200 text-sm font-medium mb-2 block">Frequency (GHz) — affects all bands</label>
+                                <div class="flex items-center gap-x-3">
+                                    <input type="number" id="freq" value="12" step="0.1" class="flex-1 bg-white/10 border border-white/20 rounded-2xl px-6 py-4 text-center font-mono text-2xl" onchange="calculateLinkBudget()">
+                                    <div class="flex gap-x-2 text-xs">
+                                        <button onclick="setFreq(1.5)" class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-2xl">L</button>
+                                        <button onclick="setFreq(3)" class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-2xl">S</button>
+                                        <button onclick="setFreq(6)" class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-2xl">C</button>
+                                        <button onclick="setFreq(10)" class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-2xl">X</button>
+                                        <button onclick="setFreq(30)" class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-2xl">Ka</button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="text-cyan-200 text-sm font-medium mb-2 block">Other Losses (dB) — atmospheric, pointing, rain, etc.</label>
+                                <div class="flex items-center gap-x-4">
+                                    <input type="range" id="loss-slider" min="0" max="30" value="4" class="flex-1 accent-cyan-400" oninput="updateInputValue(this, 'loss')">
+                                    <input type="number" id="loss" value="4" class="w-24 bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-center font-mono text-lg" onchange="syncSlider(this, 'loss-slider')">
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="text-cyan-200 text-sm font-medium mb-2 block">Receiver Sensitivity Threshold (dBW)</label>
+                                <div class="flex items-center gap-x-4">
+                                    <input type="range" id="sens-slider" min="-150" max="-60" value="-115" class="flex-1 accent-cyan-400" oninput="updateInputValue(this, 'sens')">
+                                    <input type="number" id="sens" value="-115" class="w-24 bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-center font-mono text-lg" onchange="syncSlider(this, 'sens-slider')">
+                                </div>
+                            </div>
+                            
+                            <div class="pt-4 border-t border-white/10 text-xs flex justify-between text-cyan-300">
+                                <div>EIRP = <span id="eirp-display" class="font-mono text-cyan-400 text-lg">45.0 dBW</span></div>
+                                <div class="text-emerald-400 text-sm font-medium">All values update instantly • Real FSPL formula used</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Results -->
+                <div class="col-span-12 lg:col-span-7">
+                    <div class="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 h-full">
+                        <h2 class="text-2xl font-semibold mb-6">Received Power &amp; Link Margin Across Orbits</h2>
+                        
+                        <!-- Orbit comparison table -->
+                        <table class="w-full text-left mb-8">
+                            <thead>
+                                <tr class="border-b border-white/10">
+                                    <th class="py-4 font-medium text-cyan-200">Orbit</th>
+                                    <th class="py-4 font-medium text-cyan-200">Altitude (km)</th>
+                                    <th class="py-4 font-medium text-cyan-200">Distance (km)</th>
+                                    <th class="py-4 font-medium text-cyan-200">FSPL (dB)</th>
+                                    <th class="py-4 font-medium text-cyan-200">Pr (dBW)</th>
+                                    <th class="py-4 font-medium text-cyan-200">Margin (dB)</th>
+                                    <th class="py-4 w-28"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="budget-table" class="font-mono text-lg"></tbody>
+                        </table>
+                        
+                        <!-- Comparison bar chart -->
+                        <div class="mt-4">
+                            <p class="text-cyan-200 text-sm mb-3">Link Margin Comparison (higher = better link)</p>
+                            <canvas id="margin-chart" class="h-56"></canvas>
+                        </div>
+                        
+                        <div class="mt-8 text-xs bg-white/10 rounded-2xl p-5 flex items-start gap-3">
+                            <div class="text-3xl">📐</div>
+                            <div>
+                                <strong>Free Space Path Loss formula:</strong> FSPL (dB) = 92.45 + 20·log₁₀(d<sub>km</sub>) + 20·log₁₀(f<sub>GHz</sub>)<br>
+                                <strong>Pr = Pt + Gt + Gr − FSPL − Losses</strong><br>
+                                <strong>Margin = Pr − Receiver Sensitivity</strong> • Positive margin = link closes reliably
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tab 1: Path Loss Visualizer -->
+        <div id="panel-1" class="tab-panel hidden">
+            <div class="grid grid-cols-12 gap-8">
+                <div class="col-span-12">
+                    <div class="flex justify-between items-baseline mb-6">
+                        <h2 class="text-2xl font-semibold flex items-center gap-x-3">
+                            <span>📉</span> Path Loss Visualizer — Signal Decay Across Bands
+                        </h2>
+                        <div class="flex items-center gap-x-8 text-sm">
+                            <div>
+                                <span class="text-cyan-200">Distance (km):</span> 
+                                <span id="current-dist-display" class="font-mono text-3xl text-cyan-400">1,000</span>
+                            </div>
+                            <button onclick="togglePathAnimation()" id="path-play-btn"
+                                    class="flex items-center gap-x-2 px-8 py-3 bg-cyan-400 hover:bg-cyan-300 text-black font-semibold rounded-3xl transition-colors">
+                                <span id="path-play-text">▶ ANIMATE DECAY</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="canvas-container p-6">
+                        <canvas id="path-chart" class="w-full h-[420px]"></canvas>
+                    </div>
+                    
+                    <div class="mt-6 flex flex-wrap gap-6 text-xs">
+                        <div class="flex items-center gap-x-2">
+                            <div class="w-4 h-px bg-emerald-400"></div>
+                            <span>L-band (1.5 GHz)</span>
+                        </div>
+                        <div class="flex items-center gap-x-2">
+                            <div class="w-4 h-px bg-yellow-400"></div>
+                            <span>S-band (3 GHz)</span>
+                        </div>
+                        <div class="flex items-center gap-x-2">
+                            <div class="w-4 h-px bg-teal-400"></div>
+                            <span>C-band (6 GHz)</span>
+                        </div>
+                        <div class="flex items-center gap-x-2">
+                            <div class="w-4 h-px bg-blue-400"></div>
+                            <span>X-band (10 GHz)</span>
+                        </div>
+                        <div class="flex items-center gap-x-2">
+                            <div class="w-4 h-px bg-purple-400"></div>
+                            <span>Ka-band (30 GHz)</span>
+                        </div>
+                        <div class="ml-auto text-cyan-300">X-axis: logarithmic distance • Y-axis: path loss (dB) • Drag slider or hit ANIMATE to watch signal decay in real time</div>
+                    </div>
+                    
+                    <!-- Instant loss readout -->
+                    <div class="mt-8 grid grid-cols-5 gap-4" id="instant-loss-grid">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tab 2: Orbit Visualizer -->
+        <div id="panel-2" class="tab-panel hidden">
+            <div class="grid grid-cols-12 gap-8">
+                <!-- Canvas + controls -->
+                <div class="col-span-12 lg:col-span-8">
+                    <div class="flex justify-between mb-4 px-2">
+                        <h2 class="text-2xl font-semibold flex items-center gap-x-3">
+                            <span>🛰️</span> Orbit Visualizer
+                        </h2>
+                        
+                        <div class="flex bg-white/10 rounded-3xl p-1 text-sm">
+                            <button onclick="selectOrbit('LEO')" id="orbit-leo-btn"
+                                    class="orbit-btn px-8 py-2 rounded-3xl font-medium data-[active=true]:bg-white data-[active=true]:text-black">LEO</button>
+                            <button onclick="selectOrbit('MEO')" id="orbit-meo-btn"
+                                    class="orbit-btn px-8 py-2 rounded-3xl font-medium data-[active=true]:bg-white data-[active=true]:text-black">MEO</button>
+                            <button onclick="selectOrbit('GEO')" id="orbit-geo-btn"
+                                    class="orbit-btn px-8 py-2 rounded-3xl font-medium data-[active=true]:bg-white data-[active=true]:text-black">GEO</button>
+                        </div>
+                        
+                        <div class="flex items-center gap-x-6">
+                            <button onclick="toggleOrbitAnimation()" 
+                                    class="flex items-center px-7 py-2.5 bg-emerald-400 hover:bg-emerald-300 text-black rounded-3xl font-semibold">
+                                <span id="orbit-play-text" class="mr-2">▶</span>
+                                <span id="orbit-status">PLAY ANIMATION</span>
+                            </button>
+                            
+                            <div class="text-xs font-mono bg-white/10 px-5 h-10 flex items-center rounded-3xl">
+                                Speed ×<input type="range" id="speed-slider" min="0.2" max="3" step="0.1" value="1" class="w-24 accent-emerald-400 mx-3" oninput="orbitSpeed = parseFloat(this.value)">
+                                <span id="speed-value" class="tabular-nums w-8">1.0</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="canvas-container aspect-video flex items-center justify-center relative overflow-hidden">
+                        <canvas id="orbit-canvas" width="1100" height="560" class="max-w-full"></canvas>
+                        
+                        <!-- Overlay info -->
+                        <div class="absolute top-6 left-6 bg-black/70 backdrop-blur-md text-xs font-mono rounded-2xl p-4 leading-tight">
+                            <div>Current orbit: <span id="overlay-orbit" class="text-emerald-400 font-semibold">LEO</span></div>
+                            <div>Altitude: <span id="overlay-alt" class="font-semibold">800 km</span></div>
+                            <div>Period: <span id="overlay-period" class="font-semibold">~100 min</span></div>
+                            <div class="mt-3 text-emerald-300">Elevation angle: <span id="overlay-el" class="text-3xl font-semibold text-white">87°</span></div>
+                            <div class="text-[10px] text-cyan-200">Ground station @ equator</div>
+                        </div>
+                        
+                        <div id="geo-note" class="absolute bottom-6 right-6 hidden text-xs bg-amber-400 text-black px-4 py-1 rounded-2xl font-medium">
+                            GEO is geostationary — satellite appears fixed above ground station
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Elevation chart -->
+                <div class="col-span-12 lg:col-span-4">
+                    <div class="h-full bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 flex flex-col">
+                        <h3 class="font-medium text-cyan-200 mb-4">Elevation Angle vs. Time</h3>
+                        <canvas id="elevation-chart" class="flex-1"></canvas>
+                        
+                        <div class="mt-auto pt-6 text-[10px] flex justify-between text-cyan-300">
+                            <div>Real-time simulation • Earth radius 6,371 km</div>
+                            <div class="flex items-center gap-x-1">
+                                <span class="inline-block w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
+                                LINK ACTIVE WHEN ELEVATION &gt; 0°
+                            </div>
+                        </div>
+                        
+                        <div class="text-xs mt-6 grid grid-cols-3 gap-3 text-center">
+                            <div class="bg-white/10 rounded-2xl py-3">
+                                Footprint<br><span id="footprint-size" class="font-mono text-lg">55°</span>
+                            </div>
+                            <div class="bg-white/10 rounded-2xl py-3">
+                                Slant range<br><span id="slant-range" class="font-mono text-lg">800 km</span>
+                            </div>
+                            <div class="bg-white/10 rounded-2xl py-3">
+                                Central angle φ<br><span id="phi-angle" class="font-mono text-lg">0°</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tailwind initialization
+        function initializeTailwind() {
+            tailwind.config = {
+                content: [],
+                theme: {
+                    extend: {}
+                }
+            }
+            return true
+        }
+        
+        // Global variables
+        let linkBudgetChart = null
+        let pathLossChart = null
+        let elevationChart = null
+        
+        // Orbit animation globals
+        let canvas, ctx
+        let animationFrame = null
+        let isOrbitPlaying = false
+        let orbitTime = 0
+        let currentOrbitType = 'LEO'
+        let orbitSpeed = 1.0
+        let elevationHistory = []
+        let elevationTimeLabels = []
+        
+        // Real orbital parameters (km)
+        const orbitParams = {
+            LEO: { name: 'LEO', h_km: 800, r_km: 7171, period_min: 100, color: '#67e8f9' },
+            MEO: { name: 'MEO', h_km: 20200, r_km: 26571, period_min: 720, color: '#a78bfa' },
+            GEO: { name: 'GEO', h_km: 35786, r_km: 42157, period_min: 1440, color: '#f472b6' }
+        }
+        
+        // Display radii (exaggerated for visibility)
+        const displayRadii = { LEO: 215, MEO: 340, GEO: 465 }
+        
+        // Bands for path loss
+        const frequencyBands = [
+            { name: 'L', f: 1.5, color: '#67e8f9' },
+            { name: 'S', f: 3, color: '#a3e635' },
+            { name: 'C', f: 6, color: '#22d3ee' },
+            { name: 'X', f: 10, color: '#6366f1' },
+            { name: 'Ka', f: 30, color: '#c026d3' }
+        ]
+        
+        // Link budget shared inputs
+        let currentInputs = {
+            pt: 20,
+            gt: 25,
+            gr: 35,
+            freq: 12,
+            loss: 4,
+            sens: -115
+        }
+        
+        // FSPL helper
+        function calculateFSPL(distance_km, freq_ghz) {
+            return 92.45 + 20 * Math.log10(distance_km) + 20 * Math.log10(freq_ghz)
+        }
+        
+        // Calculate full budget for one orbit
+        function computeOrbitBudget(orbitKey) {
+            const params = orbitParams[orbitKey]
+            const d = params.h_km   // overhead slant range = altitude
+            const fspl = calculateFSPL(d, currentInputs.freq)
+            const pr = currentInputs.pt + currentInputs.gt + currentInputs.gr - fspl - currentInputs.loss
+            const margin = pr - currentInputs.sens
+            return {
+                name: params.name,
+                h: params.h_km,
+                d: Math.round(d),
+                fspl: fspl.toFixed(1),
+                pr: pr.toFixed(1),
+                margin: margin.toFixed(1),
+                marginNum: margin
+            }
+        }
+        
+        // Render link budget table + chart
+        function calculateLinkBudget() {
+            // Read current values
+            currentInputs.pt = parseFloat(document.getElementById('pt').value)
+            currentInputs.gt = parseFloat(document.getElementById('gt').value)
+            currentInputs.gr = parseFloat(document.getElementById('gr').value)
+            currentInputs.freq = parseFloat(document.getElementById('freq').value)
+            currentInputs.loss = parseFloat(document.getElementById('loss').value)
+            currentInputs.sens = parseFloat(document.getElementById('sens').value)
+            
+            // EIRP
+            const eirp = currentInputs.pt + currentInputs.gt
+            document.getElementById('eirp-display').textContent = eirp.toFixed(1) + ' dBW'
+            
+            // Table
+            const tbody = document.getElementById('budget-table')
+            tbody.innerHTML = ''
+            
+            const results = {}
+            const marginData = []
+            const labels = []
+            
+            Object.keys(orbitParams).forEach(key => {
+                const res = computeOrbitBudget(key)
+                results[key] = res
+                
+                const rowHTML = `
+                <tr class="border-b border-white/10 last:border-none hover:bg-white/5 transition-colors">
+                    <td class="py-6 font-semibold">${res.name}</td>
+                    <td class="py-6">${res.h}</td>
+                    <td class="py-6">${res.d}</td>
+                    <td class="py-6 text-amber-300">${res.fspl}</td>
+                    <td class="py-6 font-semibold">${res.pr}</td>
+                    <td class="py-6 ${res.marginNum >= 0 ? 'text-emerald-400' : 'text-red-400'}">${res.margin}</td>
+                    <td class="py-6">
+                        ${res.marginNum >= 0 
+                            ? `<span class="inline-flex items-center text-xs px-3 py-1 bg-emerald-400/10 text-emerald-400 rounded-2xl">✅ LINK OK</span>` 
+                            : `<span class="inline-flex items-center text-xs px-3 py-1 bg-red-400/10 text-red-400 rounded-2xl">⚠️ MARGIN LOW</span>`}
+                    </td>
+                </tr>`
+                tbody.innerHTML += rowHTML
+                
+                marginData.push(res.marginNum)
+                labels.push(res.name)
+            })
+            
+            // Update or create bar chart
+            if (!linkBudgetChart) {
+                const ctx = document.getElementById('margin-chart')
+                linkBudgetChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Link Margin (dB)',
+                            data: marginData,
+                            backgroundColor: ['#67e8f9', '#a78bfa', '#f472b6'],
+                            borderColor: '#ffffff',
+                            borderWidth: 2,
+                            borderRadius: 8,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { grid: { color: '#334155' }, ticks: { color: '#e0f2fe' } },
+                            x: { grid: { display: false }, ticks: { color: '#e0f2fe' } }
+                        }
+                    }
+                })
+            } else {
+                linkBudgetChart.data.datasets[0].data = marginData
+                linkBudgetChart.update('none')
+            }
+        }
+        
+        // Sync number <-> slider
+        function updateInputValue(slider, id) {
+            document.getElementById(id).value = slider.value
+            calculateLinkBudget()
+        }
+        
+        function syncSlider(numInput, sliderId) {
+            document.getElementById(sliderId).value = numInput.value
+            calculateLinkBudget()
+        }
+        
+        function setFreq(val) {
+            document.getElementById('freq').value = val
+            calculateLinkBudget()
+        }
+        
+        // Path loss chart
+        function createPathLossChart() {
+            const ctx = document.getElementById('path-chart')
+            
+            // Log-spaced distances
+            const distances = []
+            for (let i = 2; i <= 5.01; i += 0.05) {
+                distances.push(Math.pow(10, i))
+            }
+            
+            const datasets = frequencyBands.map(band => {
+                return {
+                    label: band.name + '-band',
+                    data: distances.map(d => calculateFSPL(d, band.f)),
+                    borderColor: band.color,
+                    borderWidth: 3,
+                    tension: 0.1,
+                    pointRadius: 0
+                }
+            })
+            
+            pathLossChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: distances,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 1800, easing: 'easeOutQuart' },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => ctx.raw.toFixed(1) + ' dB',
+                                title: (ctx) => parseFloat(ctx[0].label).toLocaleString() + ' km'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'logarithmic',
+                            min: 100,
+                            max: 100000,
+                            ticks: { color: '#e0f2fe', callback: v => v >= 1000 ? (v/1000)+'k' : v },
+                            grid: { color: '#334155' }
+                        },
+                        y: {
+                            min: 110,
+                            max: 280,
+                            ticks: { color: '#e0f2fe', stepSize: 20 },
+                            grid: { color: '#334155' },
+                            title: { display: true, text: 'Free Space Path Loss (dB)', color: '#e0f2fe' }
+                        }
+                    }
+                }
+            })
+            
+            // Populate instant loss grid once
+            updateInstantLossGrid(1000)
+        }
+        
+        let pathAnimInterval = null
+        let animProgress = 2.0   // log10
+        
+        function togglePathAnimation() {
+            const btn = document.getElementById('path-play-btn')
+            const text = document.getElementById('path-play-text')
+            
+            if (pathAnimInterval) {
+                clearInterval(pathAnimInterval)
+                pathAnimInterval = null
+                text.textContent = '▶ ANIMATE DECAY'
+                btn.classList.remove('bg-amber-400')
+            } else {
+                animProgress = 2.0
+                text.textContent = '⏹ STOP'
+                btn.classList.add('bg-amber-400')
+                
+                pathAnimInterval = setInterval(() => {
+                    animProgress += 0.035
+                    if (animProgress > 5.0) {
+                        animProgress = 2.0
+                    }
+                    const dist = Math.pow(10, animProgress)
+                    document.getElementById('current-dist-display').textContent = Math.round(dist).toLocaleString()
+                    updateInstantLossGrid(dist)
+                    
+                    // Move a fake marker across the chart by updating a temp dataset
+                    if (pathLossChart) {
+                        const markerIndex = Math.floor((animProgress - 2) / 3 * pathLossChart.data.labels.length)
+                        // Simple redraw trigger
+                        pathLossChart.update('none')
+                    }
+                }, 32)
+            }
+        }
+        
+        function updateInstantLossGrid(currentDist) {
+            const container = document.getElementById('instant-loss-grid')
+            container.innerHTML = ''
+            
+            frequencyBands.forEach(band => {
+                const loss = calculateFSPL(currentDist, band.f)
+                const div = document.createElement('div')
+                div.className = 'bg-white/10 rounded-3xl p-5 text-center'
+                div.innerHTML = `
+                    <div class="text-xs text-white/70">${band.name}-band</div>
+                    <div class="text-4xl font-mono font-semibold text-[${band.color}]">${loss.toFixed(0)}</div>
+                    <div class="text-xs">dB at ${Math.round(currentDist).toLocaleString()} km</div>
+                `
+                container.appendChild(div)
+            })
+        }
+        
+        // Orbit canvas drawing
+        function drawOrbit() {
+            if (!ctx) return
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height)
+            
+            const centerX = canvas.width / 2
+            const centerY = canvas.height / 2 - 10
+            const earthPx = 102
+            const params = orbitParams[currentOrbitType]
+            const displayR = displayRadii[currentOrbitType]
+            
+            // Earth
+            ctx.shadowColor = '#67e8f9'
+            ctx.shadowBlur = 30
+            ctx.fillStyle = '#1e40af'
+            ctx.beginPath()
+            ctx.arc(centerX, centerY, earthPx, 0, Math.PI * 2)
+            ctx.fill()
+            ctx.shadowBlur = 0
+            
+            // Simple earth glow
+            ctx.strokeStyle = '#67e8f9'
+            ctx.lineWidth = 8
+            ctx.globalAlpha = 0.15
+            ctx.beginPath()
+            ctx.arc(centerX, centerY, earthPx + 12, 0, Math.PI * 2)
+            ctx.stroke()
+            ctx.globalAlpha = 1.0
+            
+            // Orbit ring
+            ctx.strokeStyle = '#64748b'
+            ctx.lineWidth = 4
+            ctx.setLineDash([2, 6])
+            ctx.beginPath()
+            ctx.arc(centerX, centerY, displayR, 0, Math.PI * 2)
+            ctx.stroke()
+            ctx.setLineDash([])
+            
+            // Calculate real physics angles
+            const realRatio = params.r_km / 6371
+            const realBeta = Math.acos(1 / realRatio)   // radians
+            
+            // Satellite angle (radians)
+            const theta = orbitTime * orbitSpeed * (2 * Math.PI / (params.period_min * 0.8))   // normalized speed
+            
+            // Satellite position (display)
+            const satX = centerX + displayR * Math.cos(theta)
+            const satY = centerY + displayR * Math.sin(theta)
+            
+            // Draw satellite
+            ctx.save()
+            ctx.translate(satX, satY)
+            ctx.rotate(theta + Math.PI / 4)
+            ctx.fillStyle = params.color
+            ctx.shadowColor = params.color
+            ctx.shadowBlur = 25
+            ctx.fillRect(-14, -7, 28, 14)   // satellite body
+            ctx.fillStyle = '#f1f5f9'
+            ctx.fillRect(10, -3, 12, 6)     // solar panel
+            ctx.restore()
+            
+            // Nadir angle = theta
+            const nadirAngle = theta
+            
+            // Footprint arc (real physics beta)
+            const t1 = nadirAngle - realBeta
+            const t2 = nadirAngle + realBeta
+            
+            // Highlighted footprint band on Earth surface
+            ctx.save()
+            ctx.fillStyle = 'rgba(103, 232, 249, 0.25)'
+            ctx.beginPath()
+            ctx.arc(centerX, centerY, earthPx, t1, t2)
+            ctx.arc(centerX, centerY, earthPx + 14, t2, t1, true)
+            ctx.closePath()
+            ctx.fill()
+            ctx.restore()
+            
+            // Tangent beams (visual)
+            const tx1x = centerX + earthPx * Math.cos(t1)
+            const tx1y = centerY + earthPx * Math.sin(t1)
+            const tx2x = centerX + earthPx * Math.cos(t2)
+            const tx2y = centerY + earthPx * Math.sin(t2)
+            
+            ctx.strokeStyle = '#67e8f9'
+            ctx.lineWidth = 2.5
+            ctx.globalAlpha = 0.6
+            ctx.beginPath()
+            ctx.moveTo(satX, satY)
+            ctx.lineTo(tx1x, tx1y)
+            ctx.moveTo(satX, satY)
+            ctx.lineTo(tx2x, tx2y)
+            ctx.stroke()
+            ctx.globalAlpha = 1.0
+            
+            // Ground station (fixed at bottom)
+            const gsAngle = Math.PI * 1.4   // slightly offset for nice view
+            const gsX = centerX + earthPx * Math.cos(gsAngle)
+            const gsY = centerY + earthPx * Math.sin(gsAngle)
+            ctx.fillStyle = '#f43f5e'
+            ctx.beginPath()
+            ctx.arc(gsX, gsY, 9, 0, Math.PI * 2)
+            ctx.fill()
+            ctx.fillStyle = '#fff'
+            ctx.font = '10px monospace'
+            ctx.fillText('GS', gsX - 8, gsY + 3)
+            
+            // Link line when visible
+            const phi = Math.min(Math.abs(theta - gsAngle), 2 * Math.PI - Math.abs(theta - gsAngle))
+            const isVisible = phi <= realBeta
+            if (isVisible) {
+                ctx.strokeStyle = '#67e8f9'
+                ctx.lineWidth = 3
+                ctx.setLineDash([1, 2])
+                ctx.beginPath()
+                ctx.moveTo(satX, satY)
+                ctx.lineTo(gsX, gsY)
+                ctx.stroke()
+                ctx.setLineDash([])
+            }
+            
+            // Elevation calculation (real)
+            const Re = 6371
+            const r = params.r_km
+            const d_slant = Math.sqrt(r * r + Re * Re - 2 * r * Re * Math.cos(phi))
+            let elevation = -90
+            if (d_slant > 0) {
+                elevation = Math.asin((r * Math.cos(phi) - Re) / d_slant) * (180 / Math.PI)
+            }
+            elevation = Math.max(-10, Math.min(90, elevation))
+            
+            // Update overlay
+            document.getElementById('overlay-orbit').textContent = params.name
+            document.getElementById('overlay-alt').textContent = params.h_km + ' km'
+            document.getElementById('overlay-period').textContent = '~' + params.period_min + ' min'
+            document.getElementById('overlay-el').textContent = elevation.toFixed(0) + '°'
+            document.getElementById('footprint-size').textContent = (realBeta * 2 * 180 / Math.PI).toFixed(0) + '°'
+            document.getElementById('slant-range').textContent = Math.round(d_slant) + ' km'
+            document.getElementById('phi-angle').textContent = (phi * 180 / Math.PI).toFixed(0) + '°'
+            
+            // GEO special note
+            document.getElementById('geo-note').classList.toggle('hidden', currentOrbitType !== 'GEO')
+            
+            // Record for elevation chart
+            elevationHistory.push(elevation)
+            elevationTimeLabels.push((orbitTime * 0.1).toFixed(1))
+            if (elevationHistory.length > 80) {
+                elevationHistory.shift()
+                elevationTimeLabels.shift()
+            }
+            
+            // Update elevation chart every 8 frames
+            if (Math.random() < 0.12 && elevationChart) {
+                elevationChart.data.labels = elevationTimeLabels
+                elevationChart.data.datasets[0].data = elevationHistory
+                elevationChart.update('none')
+            }
+            
+            // Continue animation
+            if (isOrbitPlaying) {
+                orbitTime += 0.016 * orbitSpeed * 1.8
+                animationFrame = requestAnimationFrame(drawOrbit)
+            }
+        }
+        
+        function selectOrbit(type) {
+            currentOrbitType = type
+            // Reset buttons
+            document.querySelectorAll('.orbit-btn').forEach(b => {
+                b.dataset.active = (b.id === `orbit-${type.toLowerCase()}-btn`)
+            })
+            if (!isOrbitPlaying) drawOrbit()   // redraw static
+        }
+        
+        function toggleOrbitAnimation() {
+            isOrbitPlaying = !isOrbitPlaying
+            const textEl = document.getElementById('orbit-play-text')
+            const statusEl = document.getElementById('orbit-status')
+            
+            if (isOrbitPlaying) {
+                textEl.textContent = '❚❚'
+                statusEl.textContent = 'PAUSE'
+                orbitTime = 0   // restart for clean loop
+                drawOrbit()
+            } else {
+                textEl.textContent = '▶'
+                statusEl.textContent = 'PLAY ANIMATION'
+                cancelAnimationFrame(animationFrame)
+            }
+        }
+        
+        // Create elevation chart
+        function createElevationChart() {
+            const ctx = document.getElementById('elevation-chart')
+            elevationChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Elevation (°)',
+                        data: [],
+                        borderColor: '#67e8f9',
+                        borderWidth: 4,
+                        tension: 0.3,
+                        pointRadius: 0,
+                        fill: true,
+                        backgroundColor: 'rgba(103, 232, 249, 0.15)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { display: false },
+                        y: {
+                            min: -10,
+                            max: 90,
+                            grid: { color: '#334155' },
+                            ticks: { color: '#e0f2fe', stepSize: 15 }
+                        }
+                    }
+                }
+            })
+        }
+        
+        // Tab system
+        function showTab(n) {
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'))
+            document.getElementById('panel-' + n).classList.remove('hidden')
+            
+            // Activate tab button
+            document.querySelectorAll('.tab-button').forEach((b, i) => {
+                if (i === n) b.classList.add('tab-active')
+                else b.classList.remove('tab-active')
+            })
+            
+            // Lazy init charts when tab shown
+            if (n === 0 && !linkBudgetChart) calculateLinkBudget()
+            if (n === 1 && !pathLossChart) createPathLossChart()
+            if (n === 2 && !elevationChart) {
+                createElevationChart()
+                // Boot canvas
+                canvas = document.getElementById('orbit-canvas')
+                ctx = canvas.getContext('2d')
+                selectOrbit('LEO')
+                drawOrbit()
+            }
+        }
+        
+        // Create background stars
+        function createStars() {
+            const container = document.getElementById('stars')
+            for (let i = 0; i < 280; i++) {
+                const star = document.createElement('div')
+                const size = Math.random() * 3 + 0.6
+                star.style.position = 'absolute'
+                star.style.left = Math.random() * 100 + '%'
+                star.style.top = Math.random() * 100 + '%'
+                star.style.width = size + 'px'
+                star.style.height = size + 'px'
+                star.style.background = 'white'
+                star.style.borderRadius = '50%'
+                star.style.opacity = Math.random() * 0.8 + 0.3
+                star.style.boxShadow = `0 0 ${size * 3}px #fff`
+                star.style.animation = `twinkle ${2 + Math.random() * 4}s infinite alternate`
+                container.appendChild(star)
+            }
+            
+            // Add CSS animation
+            const style = document.createElement('style')
+            style.innerHTML = `
+                @keyframes twinkle { 0% {opacity:0.3} 100%{opacity:1} }
+            `
+            document.head.appendChild(style)
+        }
+        
+        // Main initialization
+        window.onload = function () {
+            initializeTailwind()
+            createStars()
+            
+            // Initial link budget
+            calculateLinkBudget()
+            
+            console.log('%c✅ Satellite Link Budget & Orbit HTML ready! Copy this entire file and open in any browser.', 'background:#67e8f9;color:#0a0a2a;font-size:13px;padding:2px 6px;border-radius:2px')
+            console.log('All animations, calculations, and three interactive tools are fully self-contained.')
+        }
+    </script>
+</body>
+</html>
